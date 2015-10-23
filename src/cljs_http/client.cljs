@@ -41,25 +41,40 @@
 (def unexceptional-status?
   #{200 201 202 203 204 205 206 207 300 301 302 303 307})
 
-(defn- encode-val [k v]
-  (str (url-encode (name k)) "=" (url-encode (str v))))
+(defn str-param [s-or-k]
+  (if (keyword? s-or-k)
+    (name s-or-k)
+    (str s-or-k)))
 
-(defn- encode-vals [k vs]
-  (->>
-    vs
-    (map #(encode-val k %))
-    (join "&")))
+(defn encode-nested-kv [[k v]]
+  (let [k1 (str-param (first k))
+        ks (map str-param (rest k))
+        query-key (url-encode (str k1 (join (map #(str "[" % "]") ks))))]
+    (if (coll? v)
+      (join "&" (map #(str query-key (url-encode "[]") "=" (str-param %)) v))
+      (str query-key
+           "=" (str-param v)))))
 
-(defn- encode-param [[k v]]
-  (if (coll? v)
-    (encode-vals k v)
-    (encode-val k v)))
+(defn to-pairs
+  ([a-map]
+   (to-pairs a-map []))
+  ([a-map path]
+   (mapcat (fn [[k v]]
+             (let [path (conj path k)]
+               (if (map? v)
+                 (to-pairs v path)
+                 {path v})))
+           a-map)))
+
+(defn flatten-nested
+  [a-map]
+  (into {} (to-pairs a-map)))
 
 (defn generate-query-string [params]
-  (->>
-    params
-    (map encode-param)
-    (join "&")))
+  (->> params
+       flatten-nested
+       (map encode-nested-kv)
+       (join "&")))
 
 (def regex-char-esc-smap
   (let [esc-chars "()*&^%$#!+"]
