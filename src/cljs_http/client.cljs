@@ -74,6 +74,7 @@
   (->> params
        flatten-nested
        (map encode-nested-kv)
+       (remove empty?)
        (join "&")))
 
 (def regex-char-esc-smap
